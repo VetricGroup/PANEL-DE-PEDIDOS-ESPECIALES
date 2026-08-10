@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mumy - Panel de Control y Gestión de Caja</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            app: '#f8fafc',
+            surface: '#ffffff',
+            primary: '#0f172a',
+            border: '#cbd5e1'
+          }
+        }
+      }
+    }
+  </script>
+
+  <script>
+    if (localStorage.getItem('mumy_logged_in') !== 'true' && sessionStorage.getItem('mumy_logged_in') !== 'true') {
+      window.location.href = 'login.html';
+    }
+  </script>
+  
+  <style>
+    body { background-color: #f8fafc; color: #0f172a; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background-color: #94a3b8; border-radius: 4px; }
+  </style>
+</head>
+<body class="flex h-screen overflow-hidden antialiased bg-slate-100 text-slate-900 font-sans">
+
+  <!-- Sidebar Lateral -->
+  <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between border-r border-slate-800 h-full p-5 shrink-0 z-20">
+    <div>
+      <div class="border-b border-slate-800 pb-4 mb-5">
+        <div class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Sistema de Control</div>
+        <h1 class="text-xl font-extrabold tracking-tight text-white mt-0.5">MUMY CAFE</h1>
+        <p class="text-[11px] text-slate-400 font-medium">Gestión de Pedidos & Caja</p>
+      </div>
+
+      <nav class="flex flex-col gap-1.5">
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">Módulos</div>
+        
+        <button onclick="switchMainView('pedidos')" id="navPedidos" class="w-full flex items-center justify-between px-3 py-2.5 rounded bg-slate-800 text-white text-xs font-bold uppercase tracking-wider text-left border-l-4 border-amber-500">
+          <span>Pedidos Especiales</span>
+          <span id="badgeCountPedidos" class="text-[10px] bg-amber-500 text-slate-950 font-extrabold px-2 py-0.5 rounded">0</span>
+        </button>
+
+        <button onclick="switchMainView('comandas')" id="navComandas" class="w-full flex items-center justify-between px-3 py-2.5 rounded text-slate-300 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-left border-l-4 border-transparent">
+          <span>Comandas de Mesa</span>
+          <span id="badgeCountComandas" class="text-[10px] bg-slate-700 text-slate-200 font-bold px-2 py-0.5 rounded">0</span>
+        </button>
+
+        <button onclick="switchMainView('clientes')" id="navClientes" class="w-full flex items-center justify-between px-3 py-2.5 rounded text-slate-300 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-left border-l-4 border-transparent">
+          <span>Directorio Clientes</span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="border-t border-slate-800 pt-4 flex flex-col gap-3">
+      <div class="bg-slate-800/80 p-3 rounded border border-slate-700/60">
+        <div class="text-[10px] uppercase font-bold text-slate-400">Usuario Activo:</div>
+        <div class="text-xs font-bold text-white truncate" id="currentUserName">Administrador</div>
+      </div>
+      <button onclick="logout()" class="w-full bg-red-950 hover:bg-red-900 text-red-200 font-bold text-xs uppercase tracking-wider py-2 rounded border border-red-800 text-center">
+        Cerrar Sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- Contenido Principal -->
+  <main class="flex-1 flex flex-col h-full overflow-hidden">
+    
+    <header class="flex flex-wrap items-center justify-between px-8 py-4 bg-white border-b border-slate-300 gap-4">
+      <div>
+        <h2 class="text-xl font-extrabold text-slate-900 uppercase tracking-tight" id="headerTitle">PANEL DE PEDIDOS ESPECIALES</h2>
+        <p class="text-xs text-slate-500 font-medium" id="headerSubtitle">Control operativo de producción, rentabilidad y caja chica en Quetzales (Q).</p>
+      </div>
+      
+      <div class="flex items-center gap-3">
+        <div class="flex bg-slate-200 p-0.5 rounded border border-slate-300" id="viewModeToggleGroup">
+          <button onclick="setLayoutMode('table')" id="btnModeTable" class="px-3 py-1.5 text-xs font-bold uppercase bg-white text-slate-900 border border-slate-300">
+            Vista Lista
+          </button>
+          <button onclick="setLayoutMode('kanban')" id="btnModeKanban" class="px-3 py-1.5 text-xs font-bold uppercase text-slate-700">
+            Vista Tablero
+          </button>
+        </div>
+
+        <div id="dateFilterWrapper" class="flex items-center gap-1">
+          <span class="text-xs font-bold text-slate-600 uppercase">Fecha:</span>
+          <input type="date" id="filterDate" onchange="handleDateFilterChange(event)" class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+        </div>
+        
+        <button onclick="openNewModal()" id="btnNewModal" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider">
+          Nuevo Registro
+        </button>
+      </div>
+    </header>
+
+    <div class="flex-1 p-8 overflow-y-auto flex flex-col gap-6" id="mainContainerView"></div>
+  </main>
+
+  <!-- DRAWER: DETALLE -->
+  <div id="drawerOverlay" class="fixed inset-0 bg-slate-900/50 z-40 hidden" onclick="closeDrawer()"></div>
+  
+  <div id="orderDrawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-xl z-50 hidden flex-col border-l border-slate-300">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-300 bg-slate-100">
+      <div>
+        <div class="flex items-center gap-2">
+          <h3 class="font-bold text-base text-slate-900 uppercase" id="drawerCustomerName">Nombre Cliente</h3>
+          <span id="drawerClientBadge" class="hidden bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 border border-amber-300 uppercase">VIP FRECUENTE</span>
+        </div>
+        <p class="text-xs text-slate-600 font-mono font-bold" id="drawerOrderId">ID: MM-0000</p>
+      </div>
+      <button onclick="closeDrawer()" class="px-2 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300">CERRAR</button>
+    </div>
+    
+    <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+      <div>
+        <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Estado de Producción</h4>
+        <div class="grid grid-cols-2 gap-2" id="drawerStatusButtons"></div>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-300 p-4 rounded space-y-3">
+        <div>
+          <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Estado del Pago</h4>
+          <div class="grid grid-cols-3 gap-1.5" id="drawerPaymentButtons"></div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-200">
+          <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Medio de Pago (Cierre de Caja)</h4>
+          <div class="grid grid-cols-3 gap-1.5" id="drawerPaymentMethodButtons"></div>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 rounded p-4 border border-slate-300 space-y-3">
+        <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-1">Detalle del Registro</h4>
+        
+        <div>
+          <div class="text-[11px] text-slate-500 uppercase font-bold">Producto / Comanda</div>
+          <div class="text-sm font-bold text-slate-900" id="drawerProduct">-</div>
+        </div>
+        
+        <div>
+          <div class="text-[11px] text-slate-500 uppercase font-bold mb-1">Notas / Dedicatoria</div>
+          <div class="text-xs font-medium bg-white p-2.5 border border-slate-300 rounded text-slate-800 font-mono" id="drawerMessage">"-"</div>
+        </div>
+
+        <div id="drawerDeliveryContainer" class="bg-white p-3 border border-slate-300 rounded space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase text-slate-600">Método Entrega:</span>
+            <span id="drawerDeliveryTypeBadge" class="text-xs font-bold uppercase text-slate-900">RECOGE EN LOCAL</span>
+          </div>
+          <div id="drawerAddressRow" class="text-xs text-slate-700 pt-1 border-t border-slate-200 hidden">
+            <span class="font-bold">Dirección:</span> <span id="drawerAddressText">-</span>
+          </div>
+          <div id="drawerShippingCostRow" class="text-xs text-slate-700 hidden">
+            <span class="font-bold">Costo Envío:</span> <span id="drawerShippingCostText">Q0.00</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200" id="drawerCustomizationGrid">
+          <div>
+            <div class="text-[10px] text-slate-500 font-bold uppercase">Letras / Estilo</div>
+            <div class="text-xs font-bold text-slate-900" id="drawerLetters">-</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 font-bold uppercase">Colores</div>
+            <div class="text-xs font-bold text-slate-900" id="drawerColors">-</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+          <div>
+            <div class="text-[10px] text-slate-500 font-bold uppercase">Costo Insumos</div>
+            <div class="text-xs font-bold text-red-700" id="drawerCost">Q 0.00</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 font-bold uppercase">Utilidad Neta Real</div>
+            <div class="text-xs font-bold text-emerald-700" id="drawerProfit">Q 0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="drawerWaSection" class="space-y-2">
+        <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Acciones & Documentos</h4>
+        <button onclick="generatePDFInvoice()" class="w-full bg-slate-900 text-white rounded p-2.5 text-xs font-bold uppercase tracking-wider hover:bg-slate-800 text-center">
+          Descargar Comprobante PDF
+        </button>
+        <div class="grid grid-cols-2 gap-2">
+          <a href="#" id="waSaldoLink" target="_blank" class="bg-slate-200 hover:bg-slate-300 text-slate-900 rounded p-2 text-center text-xs font-bold uppercase">
+            Recordar Saldo
+          </a>
+          <a href="#" id="waListoLink" target="_blank" class="bg-slate-200 hover:bg-slate-300 text-slate-900 rounded p-2 text-center text-xs font-bold uppercase">
+            Aviso Pedido Listo
+          </a>
+        </div>
+        <a href="#" id="waChatLink" target="_blank" class="block w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded p-2.5 text-center text-xs font-bold uppercase">
+          Abrir Chat WhatsApp
+        </a>
+      </div>
+
+      <div class="pt-3 border-t border-slate-200 flex justify-center">
+        <button onclick="deleteCurrentOrder()" class="text-xs font-bold text-red-700 hover:underline uppercase">
+          Eliminar este registro
+        </button>
+      </div>
+
+    </div>
+    
+    <div class="p-4 border-t border-slate-300 bg-slate-100">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-600">TOTAL A COBRAR:</span>
+        <span class="text-xl font-extrabold text-slate-900" id="drawerPrice">Q 0.00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL NUEVO -->
+  <div id="newOrderModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded border border-slate-400 shadow-lg w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]" id="modalContent">
+      
+      <div class="flex items-center justify-between px-6 py-3.5 border-b border-slate-300 bg-slate-100">
+        <h3 class="font-bold text-sm uppercase text-slate-900" id="modalTitle">Crear Registro</h3>
+        <button onclick="closeNewModal()" class="px-2 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded">X</button>
+      </div>
+      
+      <div class="p-6 overflow-y-auto flex-1 flex flex-col gap-4">
+        <div class="flex bg-slate-200 p-0.5 rounded border border-slate-300">
+          <button type="button" onclick="setModalType('pedido')" id="modalTabPedido" class="flex-1 py-1 text-xs font-bold uppercase bg-white text-slate-900 border border-slate-300">Pedido Especial</button>
+          <button type="button" onclick="setModalType('comanda')" id="modalTabComanda" class="flex-1 py-1 text-xs font-bold uppercase text-slate-600">Comanda de Mesa</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1" id="labelClientName">Cliente / Mesa</label>
+            <input type="text" id="newCustomer" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800" placeholder="Nombre completo o Mesa">
+          </div>
+          <div id="phoneFieldWrapper">
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Teléfono WhatsApp</label>
+            <input type="text" id="newPhone" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800" placeholder="50255551234">
+          </div>
+        </div>
+
+        <!-- Catálogo Frecuente Flexible -->
+        <div>
+          <label class="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Catálogo Frecuente (Autocompletar)</label>
+          <select id="catalogSelect" onchange="selectCatalogItem()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-slate-800">
+            <option value="">OTRO / ESCRIBIR MANUALMENTE (SI NO ESTÁ EN EL CATÁLOGO)</option>
+            <option value="Caja de 12 cookies decoradas|185|45">Caja de 12 cookies decoradas (Q185)</option>
+            <option value="Alfajores personalizados (x24)|240|60">Alfajores personalizados (x24) (Q240)</option>
+            <option value="Torta de cookies (2 pisos)|350|90">Torta de cookies (2 pisos) (Q350)</option>
+            <option value="Café Cappuccino + Cookie|45|12">Café Cappuccino + Cookie (Q45)</option>
+            <option value="Desayuno Mumy Completo|65|20">Desayuno Mumy Completo (Q65)</option>
+          </select>
+          <p class="text-[10px] text-slate-500 mt-1">Si el producto no aparece en la lista, simplemente escríbelo abajo en "Producto / Plato".</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Producto / Plato (Editable)</label>
+            <input type="text" id="newProduct" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800" placeholder="Escribir nombre del plato o producto">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Medio de Pago (Caja)</label>
+            <select id="newPaymentMethod" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-slate-800">
+              <option value="efectivo">EFECTIVO</option>
+              <option value="tarjeta">TARJETA (DÉBITO / CRÉDITO)</option>
+              <option value="transferencia">TRANSFERENCIA BANCARIA</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Estado del Pago Inicial</label>
+            <select id="newPaymentStatus" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-slate-800">
+              <option value="pagado">PAGADO (100%)</option>
+              <option value="pendiente">PENDIENTE (0%)</option>
+              <option value="senia">SEÑA (50%)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="deliveryFieldsWrapper" class="bg-slate-50 p-3 rounded border border-slate-300 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Método de Entrega</label>
+            <select id="newDeliveryType" onchange="toggleDeliveryInputs()" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs font-bold focus:outline-none">
+              <option value="recoge">Recoge en Local</option>
+              <option value="delivery">Envío a Domicilio (Delivery)</option>
+            </select>
+          </div>
+          
+          <div id="deliveryInputsGroup" class="hidden flex flex-col gap-2 pt-2 border-t border-slate-200">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Dirección Exacta</label>
+              <input type="text" id="newAddress" class="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none" placeholder="Zona, calle, referencias...">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Costo de Envío (Q)</label>
+              <input type="number" id="newShippingCost" oninput="calculateModalTotals()" class="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1" id="labelNote">Notas de Pedido / Cocina</label>
+          <textarea id="newMessage" rows="2" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800" placeholder="Sin azúcar, dedicatoria especial..."></textarea>
+        </div>
+
+        <div id="customizationFieldsContainer" class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Letras / Estilo</label>
+            <input type="text" id="newLetters" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium focus:outline-none focus:border-slate-800" placeholder="Ej: Doradas, cursiva">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Colores</label>
+            <input type="text" id="newColors" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium focus:outline-none focus:border-slate-800" placeholder="Ej: Pastel, Rosa/Blanco">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1" id="labelDate">Fecha Entrega</label>
+            <input type="date" id="newDate" class="w-full bg-slate-50 border border-slate-300 rounded px-2 py-2 text-xs font-medium focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Precio Venta (Q)</label>
+            <input type="number" id="newPrice" oninput="calculateModalTotals()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold focus:outline-none" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Insumos (Q)</label>
+            <input type="number" id="newCost" oninput="calculateModalTotals()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold focus:outline-none" placeholder="0.00">
+          </div>
+        </div>
+
+        <div class="bg-slate-900 text-white p-3 rounded flex items-center justify-between text-xs">
+          <div>
+            <span class="text-slate-400 block text-[10px] uppercase font-bold">Total a Cobrar:</span>
+            <span class="text-sm font-bold text-amber-400" id="modalTotalPreview">Q 0.00</span>
+          </div>
+          <div class="text-right">
+            <span class="text-slate-400 block text-[10px] uppercase font-bold">Utilidad Neta:</span>
+            <span class="text-sm font-bold text-emerald-400" id="modalProfitPreview">Q 0.00</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="px-6 py-3 border-t border-slate-300 bg-slate-100 flex justify-end gap-2">
+        <button onclick="closeNewModal()" class="px-4 py-1.5 text-xs font-bold uppercase text-slate-600 border border-slate-300 bg-white">Cancelar</button>
+        <button onclick="saveNewRecord()" class="bg-slate-900 text-white px-5 py-1.5 rounded text-xs font-bold uppercase">Guardar Registro</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded border border-slate-700 hidden text-xs font-bold z-50">
+    <span id="toastMessage">Operación realizada correctamente</span>
+  </div>
+
+  <script>
+    const statuses = [
+      { id: 'nuevo', label: 'NUEVO', bgClass: 'bg-slate-100 text-slate-800 border-slate-400' },
+      { id: 'preparacion', label: 'EN PREPARACIÓN', bgClass: 'bg-amber-100 text-amber-900 border-amber-400' },
+      { id: 'listo', label: 'LISTO / EN CAMINO', bgClass: 'bg-emerald-100 text-emerald-900 border-emerald-400' },
+      { id: 'entregado', label: 'ENTREGADO', bgClass: 'bg-slate-200 text-slate-600 border-slate-300' }
+    ];
+
+    const comandaStatuses = [
+      { id: 'cocina', label: 'EN COCINA', bgClass: 'bg-amber-100 text-amber-900 border-amber-400' },
+      { id: 'servido', label: 'SERVIDO / ENTREGADO', bgClass: 'bg-emerald-100 text-emerald-900 border-emerald-400' }
+    ];
+
+    const paymentStatuses = {
+      pendiente: { label: 'PENDIENTE', bgClass: 'bg-red-100 text-red-900 border-red-300' },
+      senia: { label: 'SEÑA 50%', bgClass: 'bg-amber-100 text-amber-900 border-amber-300' },
+      pagado: { label: 'PAGADO', bgClass: 'bg-emerald-100 text-emerald-900 border-emerald-300' }
+    };
+
+    const paymentMethodLabels = {
+      efectivo: 'EFECTIVO',
+      tarjeta: 'TARJETA',
+      transferencia: 'TRANSFERENCIA'
+    };
+
+    const sampleOrders = [
+      { id: 'MM-1042', type: 'pedido', customer: 'Sofía Marroquín', phone: '50288881234', product: 'Caja de 12 cookies decoradas', message: 'Feliz cumpleaños Sofía.', letters: 'Doradas', colors: 'Rosa pastel', price: 185, cost: 45, deliveryType: 'delivery', address: '15 calle 4-20 zona 10, Guatemala', shippingCost: 25, payment: 'senia', paymentMethod: 'efectivo', date: new Date().toISOString().split('T')[0], status: 'nuevo' },
+      { id: 'MM-1041', type: 'pedido', customer: 'Diego Paredes', phone: '50288882345', product: 'Alfajores personalizados (x24)', message: 'Gracias por un año increíble.', letters: 'Blancas', colors: 'Verde sage', price: 240, cost: 60, deliveryType: 'recoge', address: '', shippingCost: 0, payment: 'pagado', paymentMethod: 'tarjeta', date: new Date().toISOString().split('T')[0], status: 'preparacion' },
+      { id: 'MM-1040', type: 'pedido', customer: 'Sofía Marroquín', phone: '50288881234', product: 'Torta de cookies (2 pisos)', message: 'Happy Birthday Fer!', letters: 'Doradas', colors: 'Blush', price: 350, cost: 90, deliveryType: 'delivery', address: '15 calle 4-20 zona 10, Guatemala', shippingCost: 25, payment: 'pagado', paymentMethod: 'transferencia', date: new Date().toISOString().split('T')[0], status: 'listo' }
+    ];
+
+    const sampleComandas = [
+      { id: 'CM-501', type: 'comanda', customer: 'Mesa 4', phone: '', product: 'Café Cappuccino + Desayuno Mumy', message: 'Cappuccino con leche deslactosada.', price: 110, cost: 32, deliveryType: 'recoge', address: '', shippingCost: 0, payment: 'pagado', paymentMethod: 'efectivo', date: new Date().toISOString().split('T')[0], status: 'servido' },
+      { id: 'CM-502', type: 'comanda', customer: 'Mesa 2', phone: '', product: '2x Café Cappuccino + 2x Cookie', message: 'Sacar bebidas primero.', price: 130, cost: 35, deliveryType: 'recoge', address: '', shippingCost: 0, payment: 'pagado', paymentMethod: 'tarjeta', date: new Date().toISOString().split('T')[0], status: 'cocina' }
+    ];
+
+    let currentMainView = 'pedidos'; 
+    let currentLayoutMode = 'table'; 
+    let modalRecordType = 'pedido';
+    let currentFilterStatus = 'todos';
+    let currentSearch = '';
+    let currentDateFilter = '';
+    let currentDrawerRecord = null;
+
+    let orders = [];
+    let comandas = [];
+
+    function loadData() {
+      const storedOrders = localStorage.getItem('mumy_orders');
+      const storedComandas = localStorage.getItem('mumy_comandas');
+      
+      orders = storedOrders ? JSON.parse(storedOrders) : [...sampleOrders];
+      comandas = storedComandas ? JSON.parse(storedComandas) : [...sampleComandas];
+      saveData();
+    }
+
+    function saveData() {
+      localStorage.setItem('mumy_orders', JSON.stringify(orders));
+      localStorage.setItem('mumy_comandas', JSON.stringify(comandas));
+      updateSidebarBadges();
+    }
+
+    function updateSidebarBadges() {
+      const activePed = orders.filter(o => o.status !== 'entregado').length;
+      const activeCom = comandas.filter(c => c.status === 'cocina').length;
+      document.getElementById('badgeCountPedidos').textContent = activePed;
+      document.getElementById('badgeCountComandas').textContent = activeCom;
+    }
+
+    function logout() {
+      localStorage.removeItem('mumy_logged_in');
+      localStorage.removeItem('mumy_user');
+      sessionStorage.removeItem('mumy_logged_in');
+      sessionStorage.removeItem('mumy_user');
+      window.location.href = 'login.html';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const activeUser = localStorage.getItem('mumy_user') || sessionStorage.getItem('mumy_user') || 'Administrador';
+      document.getElementById('currentUserName').textContent = activeUser;
+      loadData();
+      renderMainView();
+    });
+
+    function switchMainView(view) {
+      currentMainView = view;
+      currentFilterStatus = 'todos';
+      currentSearch = '';
+
+      const btnPed = document.getElementById('navPedidos');
+      const btnCom = document.getElementById('navComandas');
+      const btnCli = document.getElementById('navClientes');
+
+      btnPed.className = view === 'pedidos' ? 'w-full flex items-center justify-between px-3 py-2.5 rounded bg-slate-800 text-white text-xs font-bold uppercase tracking-wider text-left border-l-4 border-amber-500' : 'w-full flex items-center justify-between px-3 py-2.5 rounded text-slate-300 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-left border-l-4 border-transparent';
+      btnCom.className = view === 'comandas' ? 'w-full flex items-center justify-between px-3 py-2.5 rounded bg-slate-800 text-white text-xs font-bold uppercase tracking-wider text-left border-l-4 border-amber-500' : 'w-full flex items-center justify-between px-3 py-2.5 rounded text-slate-300 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-left border-l-4 border-transparent';
+      btnCli.className = view === 'clientes' ? 'w-full flex items-center justify-between px-3 py-2.5 rounded bg-slate-800 text-white text-xs font-bold uppercase tracking-wider text-left border-l-4 border-amber-500' : 'w-full flex items-center justify-between px-3 py-2.5 rounded text-slate-300 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-left border-l-4 border-transparent';
+
+      const toggleGroup = document.getElementById('viewModeToggleGroup');
+
+      if(view === 'pedidos') {
+        document.getElementById('headerTitle').textContent = 'PANEL DE PEDIDOS ESPECIALES';
+        document.getElementById('headerSubtitle').textContent = 'Control operativo de producción, rentabilidad y caja chica en Quetzales (Q).';
+        document.getElementById('dateFilterWrapper').style.display = 'flex';
+        toggleGroup.style.display = 'flex';
+        document.getElementById('btnNewModal').style.display = 'block';
+        document.getElementById('btnNewModal').textContent = 'NUEVO PEDIDO';
+      } else if(view === 'comandas') {
+        document.getElementById('headerTitle').textContent = 'COMANDAS DE MESA / BARRA';
+        document.getElementById('headerSubtitle').textContent = 'Despacho rápido en cocina y registro de consumo directo.';
+        document.getElementById('dateFilterWrapper').style.display = 'none';
+        toggleGroup.style.display = 'flex';
+        document.getElementById('btnNewModal').style.display = 'block';
+        document.getElementById('btnNewModal').textContent = 'NUEVA COMANDA';
+      } else {
+        document.getElementById('headerTitle').textContent = 'DIRECTORIO DE CLIENTES';
+        document.getElementById('headerSubtitle').textContent = 'Histórico acumulado de pedidos y datos de contacto.';
+        document.getElementById('dateFilterWrapper').style.display = 'none';
+        toggleGroup.style.display = 'none';
+        document.getElementById('btnNewModal').style.display = 'none';
+      }
+
+      renderMainView();
+    }
+
+    function setLayoutMode(mode) {
+      currentLayoutMode = mode;
+      document.getElementById('btnModeTable').className = mode === 'table' ? 'px-3 py-1.5 text-xs font-bold uppercase bg-white text-slate-900 border border-slate-300' : 'px-3 py-1.5 text-xs font-bold uppercase text-slate-700';
+      document.getElementById('btnModeKanban').className = mode === 'kanban' ? 'px-3 py-1.5 text-xs font-bold uppercase bg-white text-slate-900 border border-slate-300' : 'px-3 py-1.5 text-xs font-bold uppercase text-slate-700';
+      renderMainView();
+    }
+
+    function formatCurrency(val) {
+      const num = parseFloat(val) || 0;
+      return `Q${num.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function isFrequentCustomer(customerName) {
+      return orders.filter(o => o.customer.toLowerCase() === customerName.toLowerCase()).length >= 2;
+    }
+
+    function renderMainView() {
+      const container = document.getElementById('mainContainerView');
+      
+      if (currentMainView === 'pedidos') {
+        container.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="metricsContainer"></div>
+          
+          <div class="bg-white border border-slate-300 p-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-1 overflow-x-auto" id="statusTabs"></div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase text-slate-600">Buscar:</span>
+              <input type="text" id="searchInput" value="${currentSearch}" placeholder="Cliente, ID o Producto..." oninput="handleSearchInput(event)" class="bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs font-medium focus:outline-none focus:border-slate-800 w-64">
+            </div>
+          </div>
+
+          <div id="viewContentArea" class="flex-1 flex flex-col"></div>
+        `;
+        renderMetricsPedidos();
+        renderTabsPedidos();
+        if(currentLayoutMode === 'kanban') renderKanbanPedidos();
+        else renderTablePedidos();
+
+      } else if(currentMainView === 'comandas') {
+        container.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="comandasMetricsContainer"></div>
+          
+          <div class="bg-white border border-slate-300 p-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-1 overflow-x-auto" id="comandaStatusTabs"></div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase text-slate-600">Buscar:</span>
+              <input type="text" id="searchInput" value="${currentSearch}" placeholder="Mesa o plato..." oninput="handleSearchInput(event)" class="bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs font-medium focus:outline-none focus:border-slate-800 w-64">
+            </div>
+          </div>
+
+          <div id="viewContentArea" class="flex-1 flex flex-col"></div>
+        `;
+        renderMetricsComandas();
+        renderTabsComandas();
+        if(currentLayoutMode === 'kanban') renderKanbanComandas();
+        else renderTableComandas();
+
+      } else {
+        container.innerHTML = `
+          <div class="bg-white border border-slate-300 flex-1 flex flex-col overflow-hidden">
+            <div class="border-b border-slate-300 p-4 flex justify-between items-center bg-slate-50">
+              <div class="text-xs font-bold uppercase text-slate-800">DIRECTORIO CONSOLIDADO DE CLIENTES</div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase text-slate-600">Buscar:</span>
+                <input type="text" id="searchInput" value="${currentSearch}" placeholder="Nombre de cliente..." oninput="handleSearchInput(event)" class="bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none w-64">
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs whitespace-nowrap">
+                <thead class="bg-slate-100 border-b border-slate-300 text-slate-700 uppercase font-bold">
+                  <tr>
+                    <th class="px-6 py-3 border-r border-slate-200">Cliente</th>
+                    <th class="px-6 py-3 border-r border-slate-200">Teléfono WhatsApp</th>
+                    <th class="px-6 py-3 border-r border-slate-200">Total Pedidos</th>
+                    <th class="px-6 py-3 border-r border-slate-200">Último Producto</th>
+                    <th class="px-6 py-3 text-right">Monto Acumulado</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsTableBody" class="divide-y divide-slate-200 bg-white"></tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        renderTableClientes();
+      }
+    }
+
+    function handleSearchInput(e) {
+      currentSearch = e.target.value.toLowerCase();
+      renderMainView();
+    }
+
+    function handleDateFilterChange(e) {
+      currentDateFilter = e.target.value;
+      renderMainView();
+    }
+
+    function renderMetricsPedidos() {
+      const completed = orders.filter(o => o.status === 'listo' || o.status === 'entregado');
+      const revenue = completed.reduce((sum, o) => sum + o.price + (o.shippingCost || 0), 0);
+      const netProfit = completed.reduce((sum, o) => sum + (o.price - (o.cost || 0)), 0);
+
+      const efectivoTotal = orders.filter(o => o.payment === 'pagado' && o.paymentMethod === 'efectivo').reduce((sum, o) => sum + o.price + (o.shippingCost||0), 0);
+      const tarjetaTotal = orders.filter(o => o.payment === 'pagado' && o.paymentMethod === 'tarjeta').reduce((sum, o) => sum + o.price + (o.shippingCost||0), 0);
+
+      const container = document.getElementById('metricsContainer');
+      if(!container) return;
+      container.innerHTML = `
+        <div class="bg-slate-900 text-white p-4 border border-slate-800">
+          <div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Ventas Completadas</div>
+          <div class="text-xl font-extrabold text-white mt-1">${formatCurrency(revenue)}</div>
+          <div class="text-[10px] text-slate-400 mt-1">Total cobrado acumulado</div>
+        </div>
+        <div class="bg-white p-4 border border-slate-300">
+          <div class="text-emerald-800 text-[10px] font-bold uppercase tracking-wider">Utilidad Neta Real</div>
+          <div class="text-xl font-extrabold text-emerald-700 mt-1">${formatCurrency(netProfit)}</div>
+          <div class="text-[10px] text-slate-500 mt-1">Descuento de insumos</div>
+        </div>
+        <div class="bg-white p-4 border border-slate-300">
+          <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Cierre Caja: EFECTIVO</div>
+          <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(efectivoTotal)}</div>
+          <div class="text-[10px] text-slate-500 mt-1">Pagos recibidos en billete</div>
+        </div>
+        <div class="bg-white p-4 border border-slate-300">
+          <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Cierre Caja: TARJETA</div>
+          <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(tarjetaTotal)}</div>
+          <div class="text-[10px] text-slate-500 mt-1">Pagos en POS / Débito</div>
+        </div>
+      `;
+    }
+
+    function renderTabsPedidos() {
+      const container = document.getElementById('statusTabs');
+      if(!container) return;
+      let html = `<button onclick="setFilterStatus('todos')" class="px-3 py-1 text-xs font-bold uppercase border ${currentFilterStatus === 'todos' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}">TODOS (${orders.length})</button>`;
+      statuses.forEach(s => {
+        const cnt = orders.filter(o => o.status === s.id).length;
+        html += `<button onclick="setFilterStatus('${s.id}')" class="px-3 py-1 text-xs font-bold uppercase border ${currentFilterStatus === s.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}">${s.label} (${cnt})</button>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function setFilterStatus(st) {
+      currentFilterStatus = st;
+      renderMainView();
+    }
+
+    function renderTablePedidos() {
+      const container = document.getElementById('viewContentArea');
+      let filtered = orders.filter(o => {
+        const matchSt = currentFilterStatus === 'todos' || o.status === currentFilterStatus;
+        const matchSr = o.customer.toLowerCase().includes(currentSearch) || o.id.toLowerCase().includes(currentSearch) || o.product.toLowerCase().includes(currentSearch);
+        const matchDt = !currentDateFilter || o.date === currentDateFilter;
+        return matchSt && matchSr && matchDt;
+      });
+
+      if(filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white border border-slate-300 p-8 text-center text-slate-500 font-bold text-xs uppercase">
+            No hay pedidos registrados con los filtros seleccionados.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="bg-white border border-slate-300 overflow-hidden">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-100 border-b border-slate-300 text-slate-700 uppercase font-bold">
+              <tr>
+                <th class="px-4 py-3 border-r border-slate-200">ID / Cliente</th>
+                <th class="px-4 py-3 border-r border-slate-200">Producto</th>
+                <th class="px-4 py-3 border-r border-slate-200">Tipo Entrega</th>
+                <th class="px-4 py-3 border-r border-slate-200">Medio Pago</th>
+                <th class="px-4 py-3 border-r border-slate-200">Estado Pago</th>
+                <th class="px-4 py-3 border-r border-slate-200">Producción</th>
+                <th class="px-4 py-3 border-r border-slate-200 text-right">Total / Neto</th>
+                <th class="px-4 py-3 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+              ${filtered.map(o => {
+                const st = statuses.find(s => s.id === o.status);
+                const pay = paymentStatuses[o.payment || 'pendiente'];
+                const isVIP = isFrequentCustomer(o.customer);
+                const isDelivery = o.deliveryType === 'delivery';
+                const pMethod = paymentMethodLabels[o.paymentMethod || 'efectivo'];
+
+                return `
+                  <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3 border-r border-slate-200 cursor-pointer" onclick="openDrawer('${o.id}')">
+                      <div class="font-bold text-slate-900">${o.customer} ${isVIP ? '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] px-1 font-bold">VIP</span>' : ''}</div>
+                      <div class="text-[10px] text-slate-500 font-mono">${o.id}</div>
+                    </td>
+                    <td class="px-4 py-3 border-r border-slate-200 font-medium text-slate-800 cursor-pointer" onclick="openDrawer('${o.id}')">${o.product}</td>
+                    <td class="px-4 py-3 border-r border-slate-200">
+                      <div class="font-bold text-slate-700">${isDelivery ? 'DELIVERY' : 'LOCAL'}</div>
+                      <div class="text-[10px] text-slate-500">${o.date}</div>
+                    </td>
+                    <td class="px-4 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase">
+                      ${pMethod}
+                    </td>
+                    <td class="px-4 py-3 border-r border-slate-200">
+                      <span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${pay.bgClass}">${pay.label}</span>
+                    </td>
+                    <td class="px-4 py-3 border-r border-slate-200">
+                      <span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${st.bgClass}">${st.label}</span>
+                    </td>
+                    <td class="px-4 py-3 border-r border-slate-200 text-right">
+                      <div class="font-bold text-slate-900">${formatCurrency(o.price + (o.shippingCost || 0))}</div>
+                      <div class="text-[10px] font-bold text-emerald-700">NETO: ${formatCurrency(o.price - (o.cost || 0))}</div>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <button onclick="advanceOrderStatus('${o.id}')" class="bg-slate-800 text-white px-2.5 py-1 text-[10px] font-bold uppercase hover:bg-slate-900">
+                        Avanzar Estado
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderKanbanPedidos() {
+      const container = document.getElementById('viewContentArea');
+      let filtered = orders.filter(o => {
+        const matchSr = o.customer.toLowerCase().includes(currentSearch) || o.id.toLowerCase().includes(currentSearch) || o.product.toLowerCase().includes(currentSearch);
+        const matchDt = !currentDateFilter || o.date === currentDateFilter;
+        return matchSr && matchDt;
+      });
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+          ${statuses.map(st => {
+            const cols = filtered.filter(o => o.status === st.id);
+            return `
+              <div class="bg-slate-200 p-3 border border-slate-300 flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-slate-300 pb-2">
+                  <span class="text-xs font-bold text-slate-800 uppercase">${st.label}</span>
+                  <span class="text-xs font-bold bg-white text-slate-800 px-2 py-0.5 border border-slate-300">${cols.length}</span>
+                </div>
+
+                <div class="space-y-2 flex-1 overflow-y-auto">
+                  ${cols.map(o => {
+                    const pay = paymentStatuses[o.payment || 'pendiente'];
+                    const pMethod = paymentMethodLabels[o.paymentMethod || 'efectivo'];
+                    return `
+                      <div class="bg-white p-3 border border-slate-300 cursor-pointer space-y-2" onclick="openDrawer('${o.id}')">
+                        <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono font-bold">
+                          <span>${o.id}</span>
+                          <span class="uppercase text-slate-700">${pMethod}</span>
+                        </div>
+                        <div>
+                          <div class="font-bold text-xs text-slate-900">${o.customer}</div>
+                          <div class="text-xs text-slate-700">${o.product}</div>
+                        </div>
+                        <div class="flex items-center justify-between pt-1 border-t border-slate-200">
+                          <span class="px-1.5 py-0.5 text-[9px] font-bold border uppercase ${pay.bgClass}">${pay.label}</span>
+                          <span class="font-bold text-xs text-slate-900">${formatCurrency(o.price)}</span>
+                        </div>
+                        <button onclick="event.stopPropagation(); advanceOrderStatus('${o.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 py-1 text-[10px] font-bold border border-slate-300 uppercase">
+                          Avanzar Estado
+                        </button>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderMetricsComandas() {
+      const active = comandas.filter(c => c.status === 'cocina').length;
+      const totalRev = comandas.reduce((sum, c) => sum + c.price, 0);
+      
+      const efectivoCom = comandas.filter(c => c.payment === 'pagado' && (c.paymentMethod === 'efectivo' || !c.paymentMethod)).reduce((sum, c) => sum + c.price, 0);
+      const tarjetaCom = comandas.filter(c => c.payment === 'pagado' && c.paymentMethod === 'tarjeta').reduce((sum, c) => sum + c.price, 0);
+
+      const container = document.getElementById('comandasMetricsContainer');
+      if(!container) return;
+      container.innerHTML = `
+        <div class="bg-slate-900 text-white p-4 border border-slate-800">
+          <div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Comandas en Cocina</div>
+          <div class="text-xl font-extrabold text-white mt-1">${active}</div>
+        </div>
+        <div class="bg-white p-4 border border-slate-300">
+          <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Ventas Salón Hoy</div>
+          <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(totalRev)}</div>
+        </div>
+        <div class="bg-white p-4 border border-slate-300">
+          <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Cierre Caja: EFECTIVO</div>
+          <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(efectivoCom)}</div>
+          <div class="text-[10px] text-slate-500 mt-1">Cobrado en Billete</div>
+        </div>
+        <div class="bg-white p-4 border border-slate-300">
+          <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Cierre Caja: TARJETA</div>
+          <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(tarjetaCom)}</div>
+          <div class="text-[10px] text-slate-500 mt-1">Cobrado en POS</div>
+        </div>
+      `;
+    }
+
+    function renderTabsComandas() {
+      const container = document.getElementById('comandaStatusTabs');
+      if(!container) return;
+      let html = `<button onclick="setFilterStatus('todos')" class="px-3 py-1 text-xs font-bold uppercase border ${currentFilterStatus === 'todos' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">TODAS (${comandas.length})</button>`;
+      comandaStatuses.forEach(s => {
+        const cnt = comandas.filter(c => c.status === s.id).length;
+        html += `<button onclick="setFilterStatus('${s.id}')" class="px-3 py-1 text-xs font-bold uppercase border ${currentFilterStatus === s.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">${s.label} (${cnt})</button>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function renderTableComandas() {
+      const container = document.getElementById('viewContentArea');
+      let filtered = comandas.filter(c => {
+        const matchSt = currentFilterStatus === 'todos' || c.status === currentFilterStatus;
+        const matchSr = c.customer.toLowerCase().includes(currentSearch) || c.product.toLowerCase().includes(currentSearch);
+        return matchSt && matchSr;
+      });
+
+      container.innerHTML = `
+        <div class="bg-white border border-slate-300 overflow-hidden">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-100 border-b border-slate-300 text-slate-700 uppercase font-bold">
+              <tr>
+                <th class="px-4 py-3 border-r border-slate-200">Mesa / Comanda</th>
+                <th class="px-4 py-3 border-r border-slate-200">Plato / Bebida</th>
+                <th class="px-4 py-3 border-r border-slate-200">Notas Cocina</th>
+                <th class="px-4 py-3 border-r border-slate-200">Medio Pago</th>
+                <th class="px-4 py-3 border-r border-slate-200">Estado Pago</th>
+                <th class="px-4 py-3 border-r border-slate-200">Estado</th>
+                <th class="px-4 py-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+              ${filtered.map(c => {
+                const st = comandaStatuses.find(s => s.id === c.status);
+                const pay = paymentStatuses[c.payment || 'pendiente'];
+                const pMethod = paymentMethodLabels[c.paymentMethod || 'efectivo'];
+                return `
+                  <tr class="hover:bg-slate-50 cursor-pointer" onclick="openDrawer('${c.id}')">
+                    <td class="px-4 py-3 border-r border-slate-200 font-bold text-slate-900">${c.customer} (${c.id})</td>
+                    <td class="px-4 py-3 border-r border-slate-200 font-medium text-slate-800">${c.product}</td>
+                    <td class="px-4 py-3 border-r border-slate-200 text-slate-600 font-mono">${c.message || 'Sin notas'}</td>
+                    <td class="px-4 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase">${pMethod}</td>
+                    <td class="px-4 py-3 border-r border-slate-200"><span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${pay.bgClass}">${pay.label}</span></td>
+                    <td class="px-4 py-3 border-r border-slate-200"><span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${st.bgClass}">${st.label}</span></td>
+                    <td class="px-4 py-3 text-right font-bold text-slate-900">${formatCurrency(c.price)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderKanbanComandas() {
+      const container = document.getElementById('viewContentArea');
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+          ${comandaStatuses.map(st => {
+            const cols = comandas.filter(c => c.status === st.id);
+            return `
+              <div class="bg-slate-200 p-3 border border-slate-300 flex flex-col gap-3">
+                <div class="flex items-center justify-between font-bold text-xs text-slate-800 uppercase border-b border-slate-300 pb-2">
+                  <span>${st.label}</span>
+                  <span class="bg-white px-2 py-0.5 border text-xs">${cols.length}</span>
+                </div>
+                <div class="space-y-2 flex-1">
+                  ${cols.map(c => {
+                    const pMethod = paymentMethodLabels[c.paymentMethod || 'efectivo'];
+                    return `
+                      <div class="bg-white p-3 border border-slate-300 cursor-pointer space-y-1" onclick="openDrawer('${c.id}')">
+                        <div class="flex justify-between font-bold text-xs text-slate-900">
+                          <span>${c.customer}</span>
+                          <span>${formatCurrency(c.price)}</span>
+                        </div>
+                        <div class="text-xs text-slate-700 font-medium">${c.product}</div>
+                        <div class="flex justify-between items-center pt-1 border-t border-slate-200 text-[10px]">
+                          <span class="text-slate-500 font-mono">${c.message || 'Sin notas'}</span>
+                          <span class="font-bold text-slate-800 uppercase">${pMethod}</span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderTableClientes() {
+      const tbody = document.getElementById('clientsTableBody');
+      if(!tbody) return;
+
+      const clientMap = {};
+      orders.forEach(o => {
+        if(!clientMap[o.customer]) {
+          clientMap[o.customer] = { customer: o.customer, phone: o.phone || 'N/A', count: 0, lastProduct: o.product, totalSpent: 0 };
+        }
+        clientMap[o.customer].count += 1;
+        clientMap[o.customer].totalSpent += o.price + (o.shippingCost || 0);
+        clientMap[o.customer].lastProduct = o.product;
+      });
+
+      let list = Object.values(clientMap);
+      if(currentSearch) list = list.filter(c => c.customer.toLowerCase().includes(currentSearch));
+
+      if(list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-6 text-center text-slate-500 uppercase font-bold text-xs">No hay clientes en el registro.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = list.map(c => `
+        <tr class="hover:bg-slate-50">
+          <td class="px-6 py-3 border-r border-slate-200 font-bold text-slate-900">${c.customer} ${c.count >= 2 ? '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] px-1 font-bold">VIP</span>' : ''}</td>
+          <td class="px-6 py-3 border-r border-slate-200 font-mono text-slate-700">${c.phone}</td>
+          <td class="px-6 py-3 border-r border-slate-200 font-bold text-slate-900">${c.count} pedido(s)</td>
+          <td class="px-6 py-3 border-r border-slate-200 text-slate-700">${c.lastProduct}</td>
+          <td class="px-6 py-3 text-right font-bold text-slate-900">${formatCurrency(c.totalSpent)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function advanceOrderStatus(recordId) {
+      let rec = orders.find(o => o.id === recordId) || comandas.find(c => c.id === recordId);
+      if(!rec) return;
+
+      const list = rec.type === 'comanda' ? comandaStatuses : statuses;
+      const idx = list.findIndex(s => s.id === rec.status);
+      if(idx < list.length - 1) {
+        rec.status = list[idx + 1].id;
+        saveData();
+        renderMainView();
+        showToast(`Estado actualizado: ${list[idx + 1].label}`);
+      }
+    }
+
+    function openDrawer(recordId) {
+      let rec = orders.find(o => o.id === recordId) || comandas.find(c => c.id === recordId);
+      if (!rec) return;
+      currentDrawerRecord = rec;
+
+      const isComanda = rec.type === 'comanda';
+      const isDelivery = rec.deliveryType === 'delivery';
+      const total = rec.price + (rec.shippingCost || 0);
+
+      document.getElementById('drawerCustomerName').textContent = rec.customer;
+      document.getElementById('drawerOrderId').textContent = `ID: ${rec.id}`;
+      document.getElementById('drawerProduct').textContent = rec.product;
+      document.getElementById('drawerMessage').textContent = `"${rec.message || 'Sin notas'}"`;
+      document.getElementById('drawerPrice').textContent = formatCurrency(total);
+      document.getElementById('drawerCost').textContent = formatCurrency(rec.cost || 0);
+      document.getElementById('drawerProfit').textContent = formatCurrency(rec.price - (rec.cost || 0));
+
+      const delCont = document.getElementById('drawerDeliveryContainer');
+      if(!isComanda) {
+        delCont.style.display = 'block';
+        document.getElementById('drawerDeliveryTypeBadge').textContent = isDelivery ? 'ENVÍO A DOMICILIO (DELIVERY)' : 'RECOGE EN LOCAL';
+        
+        const addrRow = document.getElementById('drawerAddressRow');
+        const shipRow = document.getElementById('drawerShippingCostRow');
+        if(isDelivery) {
+          addrRow.classList.remove('hidden');
+          shipRow.classList.remove('hidden');
+          document.getElementById('drawerAddressText').textContent = rec.address || 'Sin dirección';
+          document.getElementById('drawerShippingCostText').textContent = formatCurrency(rec.shippingCost || 0);
+        } else {
+          addrRow.classList.add('hidden');
+          shipRow.classList.add('hidden');
+        }
+      } else {
+        delCont.style.display = 'none';
+      }
+
+      const customGrid = document.getElementById('drawerCustomizationGrid');
+      const waSec = document.getElementById('drawerWaSection');
+
+      if(isComanda) {
+        customGrid.style.display = 'none';
+        waSec.style.display = 'none';
+      } else {
+        customGrid.style.display = 'grid';
+        waSec.style.display = 'block';
+        document.getElementById('drawerLetters').textContent = rec.letters || '-';
+        document.getElementById('drawerColors').textContent = rec.colors || '-';
+        
+        const num = (rec.phone || '50200000000').replace(/\D/g, '');
+        document.getElementById('waChatLink').href = `https://wa.me/${num}?text=${encodeURIComponent('Hola ' + rec.customer + ', le escribimos de Mumy respecto a su pedido ' + rec.id)}`;
+        document.getElementById('waSaldoLink').href = `https://wa.me/${num}?text=${encodeURIComponent('Estimado/a ' + rec.customer + ', le recordamos que posee un saldo pendiente de ' + formatCurrency(total) + ' para su pedido ' + rec.id)}`;
+        document.getElementById('waListoLink').href = `https://wa.me/${num}?text=${encodeURIComponent('Estimado/a ' + rec.customer + ', su pedido de ' + rec.product + ' ya se encuentra listo para entrega.')}`;
+      }
+
+      renderDrawerButtons();
+      document.getElementById('drawerOverlay').classList.remove('hidden');
+      document.getElementById('orderDrawer').classList.remove('hidden');
+      document.getElementById('orderDrawer').classList.add('flex');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawerOverlay').classList.add('hidden');
+      document.getElementById('orderDrawer').classList.add('hidden');
+      document.getElementById('orderDrawer').classList.remove('flex');
+      currentDrawerRecord = null;
+    }
+
+    function renderDrawerButtons() {
+      const isComanda = currentDrawerRecord.type === 'comanda';
+      const stList = isComanda ? comandaStatuses : statuses;
+
+      document.getElementById('drawerStatusButtons').innerHTML = stList.map(s => `
+        <button onclick="updateRecordStatus('${s.id}')" class="px-2 py-2 text-xs font-bold border uppercase ${currentDrawerRecord.status === s.id ? s.bgClass + ' ring-2 ring-slate-900' : 'border-slate-300 text-slate-700 bg-white'}">
+          ${s.label}
+        </button>
+      `).join('');
+
+      document.getElementById('drawerPaymentButtons').innerHTML = Object.keys(paymentStatuses).map(k => {
+        const p = paymentStatuses[k];
+        return `
+          <button onclick="updatePaymentStatus('${k}')" class="px-1.5 py-1.5 text-[10px] font-bold border uppercase ${currentDrawerRecord.payment === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">
+            ${p.label}
+          </button>
+        `;
+      }).join('');
+
+      document.getElementById('drawerPaymentMethodButtons').innerHTML = Object.keys(paymentMethodLabels).map(mKey => `
+        <button onclick="updatePaymentMethod('${mKey}')" class="px-1.5 py-1.5 text-[10px] font-bold border uppercase ${(currentDrawerRecord.paymentMethod || 'efectivo') === mKey ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">
+          ${paymentMethodLabels[mKey]}
+        </button>
+      `).join('');
+    }
+
+    function updateRecordStatus(st) {
+      if(currentDrawerRecord) {
+        currentDrawerRecord.status = st;
+        saveData();
+        renderDrawerButtons();
+        renderMainView();
+        showToast('Estado actualizado');
+      }
+    }
+
+    function updatePaymentStatus(py) {
+      if(currentDrawerRecord) {
+        currentDrawerRecord.payment = py;
+        saveData();
+        renderDrawerButtons();
+        renderMainView();
+        showToast('Estado de pago actualizado');
+      }
+    }
+
+    function updatePaymentMethod(pm) {
+      if(currentDrawerRecord) {
+        currentDrawerRecord.paymentMethod = pm;
+        saveData();
+        renderDrawerButtons();
+        renderMainView();
+        showToast(`Medio de pago actualizado a: ${paymentMethodLabels[pm]}`);
+      }
+    }
+
+    function deleteCurrentOrder() {
+      if(!currentDrawerRecord) return;
+      if(confirm(`¿Confirms eliminar el registro ${currentDrawerRecord.id}?`)) {
+        if(currentDrawerRecord.type === 'comanda') comandas = comandas.filter(c => c.id !== currentDrawerRecord.id);
+        else orders = orders.filter(o => o.id !== currentDrawerRecord.id);
+        saveData();
+        closeDrawer();
+        renderMainView();
+        showToast('Registro eliminado');
+      }
+    }
+
+    const newOrderModal = document.getElementById('newOrderModal');
+
+    function openNewModal() {
+      setModalType(currentMainView === 'comandas' ? 'comanda' : 'pedido');
+      ['newCustomer','newPhone','newProduct','newMessage','newLetters','newColors','newPrice','newCost','newAddress','newShippingCost'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.value = '';
+      });
+      document.getElementById('catalogSelect').value = '';
+      document.getElementById('newPaymentStatus').value = 'pagado';
+      document.getElementById('newPaymentMethod').value = 'efectivo';
+      document.getElementById('newDeliveryType').value = 'recoge';
+      toggleDeliveryInputs();
+      document.getElementById('newDate').value = new Date().toISOString().split('T')[0];
+      calculateModalTotals();
+
+      newOrderModal.classList.remove('hidden');
+      newOrderModal.classList.add('flex');
+    }
+
+    function closeNewModal() {
+      newOrderModal.classList.add('hidden');
+      newOrderModal.classList.remove('flex');
+    }
+
+    function setModalType(type) {
+      modalRecordType = type;
+      const tabPed = document.getElementById('modalTabPedido');
+      const tabCom = document.getElementById('modalTabComanda');
+
+      if(type === 'pedido') {
+        tabPed.className = 'flex-1 py-1 text-xs font-bold uppercase bg-white text-slate-900 border border-slate-300';
+        tabCom.className = 'flex-1 py-1 text-xs font-bold uppercase text-slate-600';
+        document.getElementById('phoneFieldWrapper').style.display = 'block';
+        document.getElementById('deliveryFieldsWrapper').style.display = 'flex';
+        document.getElementById('customizationFieldsContainer').style.display = 'grid';
+        document.getElementById('labelClientName').textContent = 'Cliente';
+        document.getElementById('modalTitle').textContent = 'Crear Registro de Pedido Especial';
+        document.getElementById('newPaymentStatus').value = 'senia';
+      } else {
+        tabCom.className = 'flex-1 py-1 text-xs font-bold uppercase bg-white text-slate-900 border border-slate-300';
+        tabPed.className = 'flex-1 py-1 text-xs font-bold uppercase text-slate-600';
+        document.getElementById('phoneFieldWrapper').style.display = 'none';
+        document.getElementById('deliveryFieldsWrapper').style.display = 'none';
+        document.getElementById('customizationFieldsContainer').style.display = 'none';
+        document.getElementById('labelClientName').textContent = 'Mesa / Ubicación';
+        document.getElementById('modalTitle').textContent = 'Crear Registro de Comanda de Mesa';
+        document.getElementById('newPaymentStatus').value = 'pagado';
+      }
+      calculateModalTotals();
+    }
+
+    function toggleDeliveryInputs() {
+      const type = document.getElementById('newDeliveryType').value;
+      const grp = document.getElementById('deliveryInputsGroup');
+      if(type === 'delivery') grp.classList.remove('hidden');
+      else {
+        grp.classList.add('hidden');
+        document.getElementById('newAddress').value = '';
+        document.getElementById('newShippingCost').value = '';
+      }
+      calculateModalTotals();
+    }
+
+    function selectCatalogItem() {
+      const val = document.getElementById('catalogSelect').value;
+      if(!val) return;
+      const parts = val.split('|');
+      document.getElementById('newProduct').value = parts[0];
+      document.getElementById('newPrice').value = parts[1];
+      document.getElementById('newCost').value = parts[2];
+      calculateModalTotals();
+    }
+
+    function calculateModalTotals() {
+      const price = parseFloat(document.getElementById('newPrice').value) || 0;
+      const cost = parseFloat(document.getElementById('newCost').value) || 0;
+      const ship = parseFloat(document.getElementById('newShippingCost').value) || 0;
+      
+      const total = price + ship;
+      const profit = price - cost;
+
+      document.getElementById('modalTotalPreview').textContent = formatCurrency(total);
+      document.getElementById('modalProfitPreview').textContent = formatCurrency(profit);
+    }
+
+    function saveNewRecord() {
+      const customer = document.getElementById('newCustomer').value.trim();
+      const product = document.getElementById('newProduct').value.trim();
+      const price = parseFloat(document.getElementById('newPrice').value);
+      const cost = parseFloat(document.getElementById('newCost').value) || 0;
+      const date = document.getElementById('newDate').value;
+      const paymentMethod = document.getElementById('newPaymentMethod').value;
+
+      if(!customer || !product || isNaN(price) || !date) {
+        alert("Campos obligatorios requeridos: Cliente/Mesa, Producto, Precio Venta y Fecha.");
+        return;
+      }
+
+      if(modalRecordType === 'pedido') {
+        const record = {
+          id: `MM-${1040 + orders.length + 1}`,
+          type: 'pedido',
+          customer,
+          phone: document.getElementById('newPhone').value.trim() || '50200000000',
+          product,
+          message: document.getElementById('newMessage').value.trim() || 'Sin notas',
+          letters: document.getElementById('newLetters').value.trim() || '-',
+          colors: document.getElementById('newColors').value.trim() || '-',
+          price,
+          cost,
+          deliveryType: document.getElementById('newDeliveryType').value,
+          address: document.getElementById('newAddress').value.trim(),
+          shippingCost: parseFloat(document.getElementById('newShippingCost').value) || 0,
+          payment: document.getElementById('newPaymentStatus').value,
+          paymentMethod,
+          date,
+          status: 'nuevo'
+        };
+        orders.unshift(record);
+      } else {
+        const record = {
+          id: `CM-${500 + comandas.length + 1}`,
+          type: 'comanda',
+          customer,
+          phone: '',
+          product,
+          message: document.getElementById('newMessage').value.trim() || 'Sin notas',
+          price,
+          cost,
+          deliveryType: 'recoge',
+          address: '',
+          shippingCost: 0,
+          payment: document.getElementById('newPaymentStatus').value,
+          paymentMethod,
+          date,
+          status: 'cocina'
+        };
+        comandas.unshift(record);
+      }
+
+      saveData();
+      closeNewModal();
+      renderMainView();
+      showToast("Registro almacenado correctamente");
+    }
+
+    function generatePDFInvoice() {
+      if(!currentDrawerRecord) return;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const r = currentDrawerRecord;
+      const total = r.price + (r.shippingCost || 0);
+
+      doc.setFont("Inter", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(15, 23, 42);
+      doc.text("MUMY CAFE & REPOSTERIA", 20, 25);
+
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text("COMPROBANTE OPERATIVO DE PEDIDO", 20, 31);
+      doc.text("Guatemala, C.A.", 20, 36);
+
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`ID REGISTRO: ${r.id}`, 140, 25);
+      doc.text(`FECHA: ${r.date}`, 140, 31);
+
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, 42, 190, 42);
+
+      doc.setFontSize(10);
+      doc.text("DATOS DEL CLIENTE:", 20, 50);
+      doc.setFont("Inter", "normal");
+      doc.setFontSize(9);
+      doc.text(`Nombre: ${r.customer}`, 20, 56);
+      doc.text(`Teléfono: ${r.phone || 'N/A'}`, 20, 62);
+      doc.text(`Método Entrega: ${r.deliveryType === 'delivery' ? 'Envío a Domicilio' : 'Recoge en Local'}`, 20, 68);
+      doc.text(`Medio de Pago: ${paymentMethodLabels[r.paymentMethod || 'efectivo']}`, 20, 74);
+      if(r.address) doc.text(`Dirección: ${r.address}`, 20, 80);
+
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, 88, 170, 8, 'F');
+      doc.setFont("Inter", "bold");
+      doc.setFontSize(9);
+      doc.text("DESCRIPCION", 25, 93.5);
+      doc.text("SUBTOTAL", 160, 93.5);
+
+      doc.setFont("Inter", "normal");
+      doc.text(r.product, 25, 104);
+      doc.text(formatCurrency(r.price), 160, 104);
+
+      let curY = 116;
+      if(r.shippingCost > 0) {
+        doc.text("Costo de Envío / Delivery", 25, curY);
+        doc.text(formatCurrency(r.shippingCost), 160, curY);
+        curY += 8;
+      }
+
+      doc.line(20, curY, 190, curY);
+      curY += 8;
+
+      doc.setFont("Inter", "bold");
+      doc.setFontSize(11);
+      doc.text("TOTAL A COBRAR:", 110, curY);
+      doc.text(formatCurrency(total), 160, curY);
+
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text("Mumy Cafetería & Repostería - Documento de Control Interno", 105, 270, { align: 'center' });
+
+      doc.save(`Comprobante_${r.id}.pdf`);
+      showToast("PDF Generado");
+    }
+
+    let toastTimer;
+    function showToast(msg) {
+      const t = document.getElementById('toastNotification');
+      document.getElementById('toastMessage').textContent = msg;
+      t.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        t.classList.add('hidden');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
