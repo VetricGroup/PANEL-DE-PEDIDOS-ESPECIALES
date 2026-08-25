@@ -17,25 +17,28 @@
       theme: {
         extend: {
           fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: {
-            app: '#f8fafc',
-            surface: '#ffffff',
-            primary: '#0f172a',
-            border: '#cbd5e1'
-          }
+          colors: { app: '#f8fafc', surface: '#ffffff', primary: '#0f172a', border: '#cbd5e1' }
         }
       }
     }
   </script>
 
   <script>
+    // CONTROL DE AUTENTICACIÓN Y SEGURIDAD ANTI-INSPECCIÓN
     if (localStorage.getItem('mumy_logged_in') !== 'true' && sessionStorage.getItem('mumy_logged_in') !== 'true') {
       window.location.href = 'login.html';
     }
+
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || (e.ctrlKey && ['U','S'].includes(e.key.toUpperCase()))) {
+        e.preventDefault();
+      }
+    });
   </script>
   
   <style>
-    body { background-color: #f8fafc; color: #0f172a; }
+    body { background-color: #f8fafc; color: #0f172a; user-select: none; -webkit-user-select: none; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background-color: #94a3b8; border-radius: 4px; }
@@ -106,6 +109,10 @@
           <input type="date" id="filterDate" onchange="handleDateFilterChange(event)" class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:border-slate-800">
         </div>
         
+        <button onclick="generateCashClosePDF()" id="btnCashClose" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-3.5 py-2 rounded text-xs uppercase tracking-wider border border-amber-600">
+          Cierre de Caja (PDF)
+        </button>
+
         <button onclick="openNewModal()" id="btnNewModal" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider">
           Nuevo Registro
         </button>
@@ -115,9 +122,8 @@
     <div class="flex-1 p-8 overflow-y-auto flex flex-col gap-6" id="mainContainerView"></div>
   </main>
 
-  <!-- DRAWER: DETALLE -->
+  <!-- Drawer y Modales se mantienen según tu flujo -->
   <div id="drawerOverlay" class="fixed inset-0 bg-slate-900/50 z-40 hidden" onclick="closeDrawer()"></div>
-  
   <div id="orderDrawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-xl z-50 hidden flex-col border-l border-slate-300">
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-300 bg-slate-100">
       <div>
@@ -143,19 +149,17 @@
         </div>
 
         <div class="pt-2 border-t border-slate-200">
-          <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Medio de Pago (Cierre de Caja)</h4>
+          <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Medio de Pago</h4>
           <div class="grid grid-cols-3 gap-1.5" id="drawerPaymentMethodButtons"></div>
         </div>
       </div>
 
       <div class="bg-slate-50 rounded p-4 border border-slate-300 space-y-3">
         <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-1">Detalle del Registro</h4>
-        
         <div>
           <div class="text-[11px] text-slate-500 uppercase font-bold">Producto / Comanda</div>
           <div class="text-sm font-bold text-slate-900" id="drawerProduct">-</div>
         </div>
-        
         <div>
           <div class="text-[11px] text-slate-500 uppercase font-bold mb-1">Notas / Dedicatoria</div>
           <div class="text-xs font-medium bg-white p-2.5 border border-slate-300 rounded text-slate-800 font-mono" id="drawerMessage">"-"</div>
@@ -203,24 +207,15 @@
           Descargar Comprobante PDF
         </button>
         <div class="grid grid-cols-2 gap-2">
-          <a href="#" id="waSaldoLink" target="_blank" class="bg-slate-200 hover:bg-slate-300 text-slate-900 rounded p-2 text-center text-xs font-bold uppercase">
-            Recordar Saldo
-          </a>
-          <a href="#" id="waListoLink" target="_blank" class="bg-slate-200 hover:bg-slate-300 text-slate-900 rounded p-2 text-center text-xs font-bold uppercase">
-            Aviso Pedido Listo
-          </a>
+          <a href="#" id="waSaldoLink" target="_blank" class="bg-slate-200 hover:bg-slate-300 text-slate-900 rounded p-2 text-center text-xs font-bold uppercase">Recordar Saldo</a>
+          <a href="#" id="waListoLink" target="_blank" class="bg-slate-200 hover:bg-slate-300 text-slate-900 rounded p-2 text-center text-xs font-bold uppercase">Aviso Pedido Listo</a>
         </div>
-        <a href="#" id="waChatLink" target="_blank" class="block w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded p-2.5 text-center text-xs font-bold uppercase">
-          Abrir Chat WhatsApp
-        </a>
+        <a href="#" id="waChatLink" target="_blank" class="block w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded p-2.5 text-center text-xs font-bold uppercase">Abrir Chat WhatsApp</a>
       </div>
 
       <div class="pt-3 border-t border-slate-200 flex justify-center">
-        <button onclick="deleteCurrentOrder()" class="text-xs font-bold text-red-700 hover:underline uppercase">
-          Eliminar este registro
-        </button>
+        <button onclick="deleteCurrentOrder()" class="text-xs font-bold text-red-700 hover:underline uppercase">Eliminar este registro</button>
       </div>
-
     </div>
     
     <div class="p-4 border-t border-slate-300 bg-slate-100">
@@ -231,10 +226,8 @@
     </div>
   </div>
 
-  <!-- MODAL NUEVO -->
   <div id="newOrderModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded border border-slate-400 shadow-lg w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]" id="modalContent">
-      
       <div class="flex items-center justify-between px-6 py-3.5 border-b border-slate-300 bg-slate-100">
         <h3 class="font-bold text-sm uppercase text-slate-900" id="modalTitle">Crear Registro</h3>
         <button onclick="closeNewModal()" class="px-2 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded">X</button>
@@ -257,31 +250,29 @@
           </div>
         </div>
 
-        <!-- Catálogo Frecuente Flexible -->
         <div>
-          <label class="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Catálogo Frecuente (Autocompletar)</label>
+          <label class="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Catálogo Frecuente</label>
           <select id="catalogSelect" onchange="selectCatalogItem()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-slate-800">
-            <option value="">OTRO / ESCRIBIR MANUALMENTE (SI NO ESTÁ EN EL CATÁLOGO)</option>
+            <option value="">OTRO / ESCRIBIR MANUALMENTE</option>
             <option value="Caja de 12 cookies decoradas|185|45">Caja de 12 cookies decoradas (Q185)</option>
             <option value="Alfajores personalizados (x24)|240|60">Alfajores personalizados (x24) (Q240)</option>
             <option value="Torta de cookies (2 pisos)|350|90">Torta de cookies (2 pisos) (Q350)</option>
             <option value="Café Cappuccino + Cookie|45|12">Café Cappuccino + Cookie (Q45)</option>
             <option value="Desayuno Mumy Completo|65|20">Desayuno Mumy Completo (Q65)</option>
           </select>
-          <p class="text-[10px] text-slate-500 mt-1">Si el producto no aparece en la lista, simplemente escríbelo abajo en "Producto / Plato".</p>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Producto / Plato (Editable)</label>
-            <input type="text" id="newProduct" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800" placeholder="Escribir nombre del plato o producto">
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Producto / Plato</label>
+            <input type="text" id="newProduct" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800">
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Medio de Pago (Caja)</label>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Medio de Pago</label>
             <select id="newPaymentMethod" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-slate-800">
               <option value="efectivo">EFECTIVO</option>
-              <option value="tarjeta">TARJETA (DÉBITO / CRÉDITO)</option>
-              <option value="transferencia">TRANSFERENCIA BANCARIA</option>
+              <option value="tarjeta">TARJETA</option>
+              <option value="transferencia">TRANSFERENCIA</option>
             </select>
           </div>
         </div>
@@ -309,28 +300,28 @@
           <div id="deliveryInputsGroup" class="hidden flex flex-col gap-2 pt-2 border-t border-slate-200">
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Dirección Exacta</label>
-              <input type="text" id="newAddress" class="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none" placeholder="Zona, calle, referencias...">
+              <input type="text" id="newAddress" class="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none">
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Costo de Envío (Q)</label>
-              <input type="number" id="newShippingCost" oninput="calculateModalTotals()" class="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none" placeholder="0.00">
+              <input type="number" id="newShippingCost" oninput="calculateModalTotals()" class="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none">
             </div>
           </div>
         </div>
 
         <div>
           <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1" id="labelNote">Notas de Pedido / Cocina</label>
-          <textarea id="newMessage" rows="2" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800" placeholder="Sin azúcar, dedicatoria especial..."></textarea>
+          <textarea id="newMessage" rows="2" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-slate-800"></textarea>
         </div>
 
         <div id="customizationFieldsContainer" class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Letras / Estilo</label>
-            <input type="text" id="newLetters" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium focus:outline-none focus:border-slate-800" placeholder="Ej: Doradas, cursiva">
+            <input type="text" id="newLetters" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium focus:outline-none focus:border-slate-800">
           </div>
           <div>
             <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Colores</label>
-            <input type="text" id="newColors" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium focus:outline-none focus:border-slate-800" placeholder="Ej: Pastel, Rosa/Blanco">
+            <input type="text" id="newColors" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium focus:outline-none focus:border-slate-800">
           </div>
         </div>
 
@@ -341,11 +332,11 @@
           </div>
           <div>
             <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Precio Venta (Q)</label>
-            <input type="number" id="newPrice" oninput="calculateModalTotals()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold focus:outline-none" placeholder="0.00">
+            <input type="number" id="newPrice" oninput="calculateModalTotals()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold focus:outline-none">
           </div>
           <div>
             <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Insumos (Q)</label>
-            <input type="number" id="newCost" oninput="calculateModalTotals()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold focus:outline-none" placeholder="0.00">
+            <input type="number" id="newCost" oninput="calculateModalTotals()" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-bold focus:outline-none">
           </div>
         </div>
 
@@ -695,23 +686,15 @@
                       <div class="font-bold text-slate-700">${isDelivery ? 'DELIVERY' : 'LOCAL'}</div>
                       <div class="text-[10px] text-slate-500">${o.date}</div>
                     </td>
-                    <td class="px-4 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase">
-                      ${pMethod}
-                    </td>
-                    <td class="px-4 py-3 border-r border-slate-200">
-                      <span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${pay.bgClass}">${pay.label}</span>
-                    </td>
-                    <td class="px-4 py-3 border-r border-slate-200">
-                      <span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${st.bgClass}">${st.label}</span>
-                    </td>
+                    <td class="px-4 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase">${pMethod}</td>
+                    <td class="px-4 py-3 border-r border-slate-200"><span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${pay.bgClass}">${pay.label}</span></td>
+                    <td class="px-4 py-3 border-r border-slate-200"><span class="px-2 py-0.5 text-[10px] font-bold border uppercase ${st.bgClass}">${st.label}</span></td>
                     <td class="px-4 py-3 border-r border-slate-200 text-right">
                       <div class="font-bold text-slate-900">${formatCurrency(o.price + (o.shippingCost || 0))}</div>
                       <div class="text-[10px] font-bold text-emerald-700">NETO: ${formatCurrency(o.price - (o.cost || 0))}</div>
                     </td>
                     <td class="px-4 py-3 text-center">
-                      <button onclick="advanceOrderStatus('${o.id}')" class="bg-slate-800 text-white px-2.5 py-1 text-[10px] font-bold uppercase hover:bg-slate-900">
-                        Avanzar Estado
-                      </button>
+                      <button onclick="advanceOrderStatus('${o.id}')" class="bg-slate-800 text-white px-2.5 py-1 text-[10px] font-bold uppercase hover:bg-slate-900">Avanzar Estado</button>
                     </td>
                   </tr>
                 `;
@@ -776,7 +759,6 @@
     function renderMetricsComandas() {
       const active = comandas.filter(c => c.status === 'cocina').length;
       const totalRev = comandas.reduce((sum, c) => sum + c.price, 0);
-      
       const efectivoCom = comandas.filter(c => c.payment === 'pagado' && (c.paymentMethod === 'efectivo' || !c.paymentMethod)).reduce((sum, c) => sum + c.price, 0);
       const tarjetaCom = comandas.filter(c => c.payment === 'pagado' && c.paymentMethod === 'tarjeta').reduce((sum, c) => sum + c.price, 0);
 
@@ -794,12 +776,10 @@
         <div class="bg-white p-4 border border-slate-300">
           <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Cierre Caja: EFECTIVO</div>
           <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(efectivoCom)}</div>
-          <div class="text-[10px] text-slate-500 mt-1">Cobrado en Billete</div>
         </div>
         <div class="bg-white p-4 border border-slate-300">
           <div class="text-slate-600 text-[10px] font-bold uppercase tracking-wider">Cierre Caja: TARJETA</div>
           <div class="text-xl font-extrabold text-slate-900 mt-1">${formatCurrency(tarjetaCom)}</div>
-          <div class="text-[10px] text-slate-500 mt-1">Cobrado en POS</div>
         </div>
       `;
     }
@@ -1231,7 +1211,6 @@
       if(!currentDrawerRecord) return;
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
-
       const r = currentDrawerRecord;
       const total = r.price + (r.shippingCost || 0);
 
@@ -1239,7 +1218,6 @@
       doc.setFontSize(18);
       doc.setTextColor(15, 23, 42);
       doc.text("MUMY CAFE & REPOSTERIA", 20, 25);
-
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text("COMPROBANTE OPERATIVO DE PEDIDO", 20, 31);
@@ -1295,6 +1273,169 @@
 
       doc.save(`Comprobante_${r.id}.pdf`);
       showToast("PDF Generado");
+    }
+
+    function generateCashClosePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const activeUser = localStorage.getItem('mumy_user') || sessionStorage.getItem('mumy_user') || 'Administrador';
+      const targetDate = currentDateFilter || new Date().toISOString().split('T')[0];
+      const timeStr = new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+
+      const allRecords = [...orders, ...comandas].filter(r => !currentDateFilter || r.date === currentDateFilter);
+
+      let totalEfectivo = 0, totalTarjeta = 0, totalTransferencia = 0, totalPendiente = 0, granTotalCobrado = 0, totalInsumos = 0;
+
+      allRecords.forEach(r => {
+        const totalVenta = r.price + (r.shippingCost || 0);
+        if (r.payment === 'pagado') {
+          granTotalCobrado += totalVenta;
+          totalInsumos += (r.cost || 0);
+          if (r.paymentMethod === 'tarjeta') totalTarjeta += totalVenta;
+          else if (r.paymentMethod === 'transferencia') totalTransferencia += totalVenta;
+          else totalEfectivo += totalVenta;
+        } else if (r.payment === 'senia') {
+          const pagadoMitad = totalVenta / 2;
+          granTotalCobrado += pagadoMitad;
+          totalPendiente += pagadoMitad;
+          totalInsumos += (r.cost || 0);
+          if (r.paymentMethod === 'tarjeta') totalTarjeta += pagadoMitad;
+          else if (r.paymentMethod === 'transferencia') totalTransferencia += pagadoMitad;
+          else totalEfectivo += pagadoMitad;
+        } else {
+          totalPendiente += totalVenta;
+        }
+      });
+
+      const utilidadNeta = granTotalCobrado - totalInsumos;
+
+      doc.setFont("Inter", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(15, 23, 42);
+      doc.text("MUMY CAFE & REPOSTERIA", 20, 22);
+
+      doc.setFontSize(10);
+      doc.setTextColor(180, 83, 9);
+      doc.text("INFORME DIARIO DE ARQUEO Y CIERRE DE CAJA", 20, 28);
+
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Fecha del Cierre: ${targetDate}`, 135, 20);
+      doc.text(`Hora Generación: ${timeStr}`, 135, 25);
+      doc.text(`Cajero / Responsable: ${activeUser}`, 135, 30);
+
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, 35, 190, 35);
+
+      doc.setFillColor(248, 250, 252);
+      doc.rect(20, 40, 170, 48, 'F');
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(20, 40, 170, 48, 'S');
+
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont("Inter", "bold");
+      doc.text("RESUMEN GENERAL DE INGRESOS Y ARQUEO EN CAJA", 25, 47);
+
+      doc.setFont("Inter", "normal");
+      doc.setFontSize(9);
+      doc.text(`(+) Total Cobrado en EFECTIVO:`, 25, 55);
+      doc.text(formatCurrency(totalEfectivo), 160, 55);
+
+      doc.text(`(+) Total Cobrado en TARJETA:`, 25, 61);
+      doc.text(formatCurrency(totalTarjeta), 160, 61);
+
+      doc.text(`(+) Total Cobrado en TRANSFERENCIA:`, 25, 67);
+      doc.text(formatCurrency(totalTransferencia), 160, 67);
+
+      doc.setTextColor(180, 83, 9);
+      doc.text(`(!) Saldos Pendientes de Cobro:`, 25, 73);
+      doc.text(formatCurrency(totalPendiente), 160, 73);
+
+      doc.setDrawColor(200, 200, 200);
+      doc.line(25, 76, 185, 76);
+
+      doc.setFont("Inter", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`TOTAL CONSOLIDADO COBRADO EN CAJA:`, 25, 82);
+      doc.text(formatCurrency(granTotalCobrado), 160, 82);
+
+      doc.setFontSize(9);
+      doc.setTextColor(5, 150, 105);
+      doc.text(`UTILIDAD NETA DIARIA ESTIMADA:`, 25, 87);
+      doc.text(formatCurrency(utilidadNeta), 160, 87);
+
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`DETALLE DE VENTAS REGISTRADAS (${allRecords.length} TRANSACCIONES)`, 20, 98);
+
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, 102, 170, 7, 'F');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text("ID", 22, 106.5);
+      doc.text("CLIENTE / MESA", 42, 106.5);
+      doc.text("TIPO", 95, 106.5);
+      doc.text("MEDIO PAGO", 120, 106.5);
+      doc.text("ESTADO", 150, 106.5);
+      doc.text("TOTAL", 175, 106.5);
+
+      let curY = 114;
+      doc.setFont("Inter", "normal");
+
+      allRecords.forEach((r) => {
+        if (curY > 250) {
+          doc.addPage();
+          curY = 20;
+          doc.setFont("Inter", "bold");
+          doc.setFontSize(8);
+          doc.setFillColor(240, 240, 240);
+          doc.rect(20, curY, 170, 7, 'F');
+          doc.text("ID", 22, curY + 4.5);
+          doc.text("CLIENTE / MESA", 42, curY + 4.5);
+          doc.text("TIPO", 95, curY + 4.5);
+          doc.text("MEDIO PAGO", 120, curY + 4.5);
+          doc.text("ESTADO", 150, curY + 4.5);
+          doc.text("TOTAL", 175, curY + 4.5);
+          curY += 12;
+          doc.setFont("Inter", "normal");
+        }
+
+        const totalVenta = r.price + (r.shippingCost || 0);
+        const pMethod = paymentMethodLabels[r.paymentMethod || 'efectivo'];
+        const pStatus = paymentStatuses[r.payment || 'pendiente'].label;
+
+        doc.text(r.id, 22, curY);
+        doc.text(r.customer.substring(0, 25), 42, curY);
+        doc.text(r.type === 'pedido' ? 'PEDIDO' : 'COMANDA', 95, curY);
+        doc.text(pMethod, 120, curY);
+        doc.text(pStatus, 150, curY);
+        doc.text(formatCurrency(totalVenta), 175, curY);
+
+        curY += 6;
+      });
+
+      curY = Math.max(curY + 20, 245);
+      if (curY > 260) {
+        doc.addPage();
+        curY = 40;
+      }
+
+      doc.setDrawColor(150, 150, 150);
+      doc.line(30, curY, 90, curY);
+      doc.line(110, curY, 170, curY);
+
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Firma Cajero / Responsable", 60, curY + 5, { align: 'center' });
+      doc.text("Firma Administrador General", 140, curY + 5, { align: 'center' });
+
+      doc.setFontSize(8);
+      doc.text("Mumy Cafetería & Repostería · Informe Oficial de Cierre de Caja", 105, 280, { align: 'center' });
+
+      doc.save(`Cierre_Caja_${targetDate}_Mumy.pdf`);
+      showToast("Informe de Cierre de Caja descargado (PDF)");
     }
 
     let toastTimer;
